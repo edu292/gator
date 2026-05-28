@@ -1,19 +1,23 @@
 package main
 
 import (
+	"fmt"
 	"log"
-	"net/http"
-	"os"
 
-	"github.com/joho/godotenv"
+	"gator/internal/config"
 )
 
 func main() {
-	godotenv.Load()
-	portString := os.Getenv("PORT")
-	if portString == "" {
-		log.Fatal("PORT is not found in the environment")
+	c, err := config.Read()
+	if err != nil {
+		log.Fatal(err)
 	}
-	mux := http.NewServeMux()
-	mux.Handler
+
+	err = c.SetUser("edusk")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	c, _ = config.Read()
+	fmt.Println(*c)
 }
