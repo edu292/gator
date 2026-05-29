@@ -15,3 +15,6 @@ FROM
   users
 WHERE
   name = @name;
+
+-- name: ResetUsers :exec
+DELETE FROM users;

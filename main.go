@@ -62,6 +62,16 @@ func handlerRegister(s *state, cmd command) error {
 	return nil
 }
 
+func handlerReset(s *state, cmd command) error {
+	err := s.db.ResetUsers(context.Background())
+	if err != nil {
+		log.Fatalf("Failed to reset users: %s", err)
+	}
+
+	fmt.Println("Reset successfull")
+	return nil
+}
+
 type commands struct {
 	registry map[string]func(*state, command) error
 }
@@ -96,8 +106,9 @@ func main() {
 	cmds := commands{make(map[string]func(*state, command) error)}
 	cmds.register("login", handlerLogin)
 	cmds.register("register", handlerRegister)
+	cmds.register("reset", handlerReset)
 	args := os.Args
-	if len(args) <= 2 {
+	if len(args) <= 1 {
 		log.Fatalf("Too few args")
 	}
 
