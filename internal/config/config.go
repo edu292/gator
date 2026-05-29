@@ -5,6 +5,8 @@ import (
 	"errors"
 	"os"
 	"path"
+
+	"gator/internal/database"
 )
 
 const configFileName = ".gatorconfig.json"
@@ -12,6 +14,15 @@ const configFileName = ".gatorconfig.json"
 type Config struct {
 	DBUrl           string `json:"db_url"`
 	CurrentUserName string `json:"current_user_name"`
+}
+
+type State struct {
+	Cfg *Config
+	DB  *database.Queries
+}
+
+func NewState(c *Config, db *database.Queries) *State {
+	return &State{Cfg: c, DB: db}
 }
 
 func getConfigFile(write ...bool) (*os.File, error) {
