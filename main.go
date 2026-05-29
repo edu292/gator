@@ -9,9 +9,11 @@ import (
 	"os"
 	"os/signal"
 
-	"gator/internal/commands"
-	"gator/internal/config"
-	"gator/internal/database"
+	"github.com/edu292/gator/internal/config"
+
+	"github.com/edu292/gator/internal/database"
+
+	"github.com/edu292/gator/internal/commands"
 
 	_ "github.com/lib/pq"
 )

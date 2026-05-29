@@ -7,9 +7,11 @@ import (
 	"strconv"
 	"time"
 
-	"gator/internal/config"
-	"gator/internal/database"
-	"gator/internal/rss"
+	"github.com/edu292/gator/internal/database"
+
+	"github.com/edu292/gator/internal/rss"
+
+	"github.com/edu292/gator/internal/config"
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"

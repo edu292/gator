@@ -1,4 +1,4 @@
-module gator
+module github.com/edu292/gator
 
 go 1.26.3
 

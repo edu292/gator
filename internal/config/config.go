@@ -6,7 +6,7 @@ import (
 	"os"
 	"path"
 
-	"gator/internal/database"
+	"github.com/edu292/gator/internal/database"
 
 	"github.com/google/uuid"
 )

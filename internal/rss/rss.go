@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"time"
 
-	"gator/internal/database"
+	"github.com/edu292/gator/internal/database"
 
 	"github.com/lib/pq"
 )
