@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
+	"time"
 
 	"gator/internal/config"
 	"gator/internal/database"
@@ -77,6 +79,9 @@ func handlerReset(ctx context.Context, s *config.State, cmd command) error {
 	if err := s.DB.ResetUsers(ctx); err != nil {
 		return fmt.Errorf("%w: reset failed: %w", ErrFatal, parseDBErr(err))
 	}
+	if err := s.Cfg.Reset(); err != nil {
+		return fmt.Errorf("could not reset current session user: %w", err)
+	}
 
 	fmt.Println("Reset successful")
 	return nil
@@ -95,15 +100,6 @@ func handlerUsers(ctx context.Context, s *config.State, cmd command) error {
 		}
 		fmt.Println()
 	}
-	return nil
-}
-
-func handlerAgg(ctx context.Context, s *config.State, cmd command) error {
-	feed, err := rss.FetchFeed(ctx, "https://www.wagslane.dev/index.xml")
-	if err != nil {
-		return fmt.Errorf("%w: fetch feed failed: %w", ErrFatal, err)
-	}
-	fmt.Println(*feed)
 	return nil
 }
 
@@ -182,7 +178,7 @@ func handlerUnfollow(ctx context.Context, s *config.State, cmd command, user dat
 		return fmt.Errorf("%w: Could not find feed with giver URL: %w", ErrFatal, parseDBErr(err))
 	}
 
-	err = s.DB.UnfollowFeed(ctx, database.UnfollowFeedParams{
+	_, err = s.DB.UnfollowFeed(ctx, database.UnfollowFeedParams{
 		UserID: user.ID,
 		FeedID: feed.ID,
 	})
@@ -191,6 +187,61 @@ func handlerUnfollow(ctx context.Context, s *config.State, cmd command, user dat
 	}
 
 	fmt.Printf("Stopped following %s @ %s\n", feed.Name, feed.Url)
+	return nil
+}
+
+func handlerAgg(ctx context.Context, s *config.State, cmd command) error {
+	timeBetweenReqs, err := time.ParseDuration(cmd.args[0])
+	if err != nil {
+		return fmt.Errorf("%w: Could not parse time between reqs arg: %w", ErrFatal, err)
+	}
+
+	fmt.Printf("Collecting feeds every %s\n", timeBetweenReqs)
+	ticker := time.NewTicker(timeBetweenReqs)
+	defer ticker.Stop()
+
+	if err := rss.ScrapeFeeds(ctx, s.DB); err != nil {
+		return err
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			err := rss.ScrapeFeeds(ctx, s.DB)
+			if err != nil {
+				return err
+			}
+		}
+	}
+}
+
+func handlerBrowse(ctx context.Context, s *config.State, cmd command, user database.User) error {
+	limit := 2
+	var err error
+	if len(cmd.args) > 0 {
+		value := cmd.args[0]
+		limit, err = strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("%w: Expect valid int argument. Got: %s", ErrFatal, value)
+		}
+	}
+
+	posts, err := s.DB.GetPostsForUser(ctx, database.GetPostsForUserParams{
+		UserID: user.ID,
+		Limit:  limit,
+	})
+	if err != nil {
+		return fmt.Errorf("%w: Could not retrive posts from db: %w", ErrFatal, parseDBErr(err))
+	}
+
+	for _, post := range posts {
+		fmt.Println(post.Title)
+		fmt.Println(post.Description)
+		fmt.Println(post.Url)
+		fmt.Println(post.PublishedAt)
+	}
 	return nil
 }
 
@@ -205,6 +256,10 @@ type (
 
 func middlewareLoggedIn(handler func(ctx context.Context, s *config.State, cmd command, user database.User) error) Handler {
 	return func(ctx context.Context, s *config.State, cmd command) error {
+		userID := s.Cfg.CurrentUserID
+		if userID == uuid.Nil {
+			return fmt.Errorf("%w: You must create and log into an accout to use this command", ErrFatal)
+		}
 		user, err := s.DB.GetUserByID(ctx, s.Cfg.CurrentUserID)
 		if err != nil {
 			return fmt.Errorf("%w: Could not get current user from db: %w", ErrFatal, parseDBErr(err))
@@ -220,12 +275,13 @@ func NewRegistry() registry {
 		"login":     {ReqArgs: 1, Run: handlerLogin},
 		"reset":     {Run: handlerReset},
 		"users":     {Run: handlerUsers},
-		"agg":       {Run: handlerAgg},
+		"agg":       {ReqArgs: 1, Run: handlerAgg},
 		"feeds":     {Run: handlerFeeds},
 		"addfeed":   {ReqArgs: 2, Run: middlewareLoggedIn(handlerAddFeed)},
 		"follow":    {ReqArgs: 1, Run: middlewareLoggedIn(handlerFollow)},
 		"following": {Run: middlewareLoggedIn(handlerFollowing)},
 		"unfollow":  {ReqArgs: 1, Run: middlewareLoggedIn(handlerUnfollow)},
+		"browse":    {ReqArgs: -1, Run: middlewareLoggedIn(handlerBrowse)},
 	}
 
 	return registry

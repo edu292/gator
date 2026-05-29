@@ -28,10 +28,14 @@ JOIN
 WHERE
   feed_follows.user_id = @user_id;
 
--- name: UnfollowFeed :exec
+-- name: UnfollowFeed :one
 DELETE FROM
   feed_follows
 WHERE
   feed_follows.user_id = @user_id
 AND
-  feed_follows.feed_id = @feed_id;
+  feed_follows.feed_id = @feed_id
+RETURNING *;
+
+-- name: ResetFeedFollows :exec
+DELETE FROM feed_follows;

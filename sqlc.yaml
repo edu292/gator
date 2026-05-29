@@ -6,3 +6,7 @@ sql:
     gen:
       go:
         out: "internal/database"
+        emit_pointers_for_null_types: true
+        overrides:
+          - db_type: "integer"
+            go_type: "int"

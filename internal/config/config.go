@@ -15,7 +15,7 @@ const configFileName = ".gatorconfig.json"
 
 type Config struct {
 	DBUrl         string    `json:"db_url"`
-	CurrentUserID uuid.UUID `json:"current_user_id"`
+	CurrentUserID uuid.UUID `json:"current_user_id,omitempty"`
 }
 
 type State struct {
@@ -71,9 +71,7 @@ func Read() (*Config, error) {
 	return config, nil
 }
 
-func (c *Config) SetUser(userID uuid.UUID) error {
-	c.CurrentUserID = userID
-
+func (c *Config) write() error {
 	configFile, err := getConfigFile(true)
 	if err != nil {
 		return err
@@ -84,4 +82,16 @@ func (c *Config) SetUser(userID uuid.UUID) error {
 	json.NewEncoder(configFile).Encode(c)
 
 	return nil
+}
+
+func (c *Config) SetUser(userID uuid.UUID) error {
+	c.CurrentUserID = userID
+
+	return c.write()
+}
+
+func (c *Config) Reset() error {
+	c.CurrentUserID = uuid.Nil
+
+	return c.write()
 }
