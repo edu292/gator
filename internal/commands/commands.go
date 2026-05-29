@@ -114,7 +114,18 @@ func handlerAddFeed(s *config.State, cmd command) error {
 	return nil
 }
 
-func handlerFeeds
+func handlerFeeds(s *config.State, cmd command) error {
+	feeds, err := s.DB.GetFeeds(context.Background())
+	if err != nil {
+		return err
+	}
+
+	for _, feed := range feeds {
+		fmt.Printf("%s - %s @ %s\n", feed.UserName, feed.FeedName, feed.Url)
+	}
+
+	return nil
+}
 
 type commands struct {
 	registry map[string]func(*config.State, command) error

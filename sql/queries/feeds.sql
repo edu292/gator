@@ -9,7 +9,9 @@ RETURNING *;
 
 -- name: GetFeeds :many
 SELECT
-  feeds.name, feeds.url, users.name
+  feeds.name AS feed_name,
+  feeds.url,
+  users.name AS user_name
 FROM
   feeds
 JOIN
