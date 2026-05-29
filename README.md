@@ -19,7 +19,7 @@ Gator takes a **SQL-first approach** to database management. By utilizing `sqlc`
 
 Before running Gator, you need to create a configuration file named `.gatorconfig.json` in your user's home directory. This file stores your database connection string and tracks the currently logged-in user.
 
-Create `~/.gatorconfig.json` and add your database URL (e.g., PostgreSQL):
+Create `~/.gatorconfig.json` and add your database URL (PostgreSQL):
 
 ```json
 {
@@ -78,14 +78,17 @@ Once configured and installed, you can use the `gator` CLI to manage your feeds.
 | --- | --- |
 | `gator register <username>` | Creates a new user account and immediately logs you in. |
 | `gator login <username>` | Logs in as an existing user. |
+| `gator users` | Shows all users currently registered, indicates current user |
 
 ### Managing Feeds
 
 | Command | Description |
 | --- | --- |
 | `gator addfeed <name> <url>` | Creates a new RSS feed in the database and automatically follows it. |
+| `gator feeds` | Shows all currently registered feeds and who created them |
 | `gator follow <url>` | Starts following an existing feed. |
 | `gator unfollow <url>` | Stops following a specific feed. |
+| `gator following` | Shows feeds you are currently following |
 
 ### Fetching & Reading
 
@@ -110,5 +113,4 @@ gator agg 1m
 
 # 4. Browse your newly fetched posts (shows the 5 most recent)
 gator browse 5
-
 ```
