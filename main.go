@@ -2,6 +2,8 @@ package main
 
 import (
 	"database/sql"
+	"errors"
+	"fmt"
 	"log"
 	"os"
 
@@ -28,10 +30,17 @@ func main() {
 	s := config.NewState(c, dbQueries)
 	cmds := commands.NewCommands()
 	args := os.Args
-	if len(args) <= 1 {
+	if len(args) < 2 {
 		log.Fatalf("Too few args")
 	}
 
 	cmd := commands.NewCommand(args)
-	cmds.Run(s, cmd)
+	err = cmds.Run(s, cmd)
+	if err != nil {
+		if errors.Is(err, commands.ErrFatal) {
+			log.Fatal(err)
+		}
+
+		fmt.Println(err)
+	}
 }
