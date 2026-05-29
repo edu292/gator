@@ -107,22 +107,21 @@ func handlerAgg(ctx context.Context, s *config.State, cmd command) error {
 	return nil
 }
 
-func handlerAddFeed(ctx context.Context, s *config.State, cmd command) error {
-	userID := s.Cfg.CurrentUserID
+func handlerAddFeed(ctx context.Context, s *config.State, cmd command, user database.User) error {
 	name := cmd.args[0]
 	url := cmd.args[1]
 
 	feed, err := s.DB.CreateFeed(ctx, database.CreateFeedParams{
 		Name:   name,
 		Url:    url,
-		UserID: userID,
+		UserID: user.ID,
 	})
 	if err != nil {
 		return fmt.Errorf("%w: create feed failed: %w", ErrFatal, parseDBErr(err))
 	}
 
 	_, err = s.DB.CreateFeedFollow(ctx, database.CreateFeedFollowParams{
-		FeedID: feed.ID, UserID: userID,
+		FeedID: feed.ID, UserID: user.ID,
 	})
 	if err != nil {
 		return fmt.Errorf("%w: follow feed failed: %w", ErrFatal, parseDBErr(err))
@@ -144,7 +143,7 @@ func handlerFeeds(ctx context.Context, s *config.State, cmd command) error {
 	return nil
 }
 
-func handlerFollow(ctx context.Context, s *config.State, cmd command) error {
+func handlerFollow(ctx context.Context, s *config.State, cmd command, user database.User) error {
 	url := cmd.args[0]
 
 	feed, err := s.DB.GetFeedByUrl(ctx, url)
@@ -152,7 +151,7 @@ func handlerFollow(ctx context.Context, s *config.State, cmd command) error {
 		return fmt.Errorf("%w: feed missing: %w", ErrFatal, parseDBErr(err))
 	}
 
-	follow, err := s.DB.CreateFeedFollow(ctx, database.CreateFeedFollowParams{
+	_, err = s.DB.CreateFeedFollow(ctx, database.CreateFeedFollowParams{
 		UserID: s.Cfg.CurrentUserID,
 		FeedID: feed.ID,
 	})
@@ -160,17 +159,12 @@ func handlerFollow(ctx context.Context, s *config.State, cmd command) error {
 		return fmt.Errorf("%w: create follow failed: %w", ErrFatal, parseDBErr(err))
 	}
 
-	user, err := s.DB.GetUserByID(ctx, s.Cfg.CurrentUserID)
-	if err != nil {
-		return fmt.Errorf("%w: get user failed: %w", ErrFatal, parseDBErr(err))
-	}
-
-	fmt.Printf("%s follows %s\n", user.Name, follow.FeedName)
+	fmt.Printf("Started following %s @ %s\n", feed.Name, feed.Url)
 	return nil
 }
 
-func handlerFollowing(ctx context.Context, s *config.State, cmd command) error {
-	follows, err := s.DB.GetFeedFollowsForUser(ctx, s.Cfg.CurrentUserID)
+func handlerFollowing(ctx context.Context, s *config.State, cmd command, user database.User) error {
+	follows, err := s.DB.GetFeedFollowsForUser(ctx, user.ID)
 	if err != nil {
 		return fmt.Errorf("get follows failed: %w", parseDBErr(err))
 	}
@@ -181,13 +175,44 @@ func handlerFollowing(ctx context.Context, s *config.State, cmd command) error {
 	return nil
 }
 
+func handlerUnfollow(ctx context.Context, s *config.State, cmd command, user database.User) error {
+	url := cmd.args[0]
+	feed, err := s.DB.GetFeedByUrl(ctx, url)
+	if err != nil {
+		return fmt.Errorf("%w: Could not find feed with giver URL: %w", ErrFatal, parseDBErr(err))
+	}
+
+	err = s.DB.UnfollowFeed(ctx, database.UnfollowFeedParams{
+		UserID: user.ID,
+		FeedID: feed.ID,
+	})
+	if err != nil {
+		return fmt.Errorf("%w: Could not unfollow feed: %w", ErrFatal, parseDBErr(err))
+	}
+
+	fmt.Printf("Stopped following %s @ %s\n", feed.Name, feed.Url)
+	return nil
+}
+
 type (
-	cmdDef struct {
+	Handler func(ctx context.Context, s *config.State, cmd command) error
+	cmdDef  struct {
 		ReqArgs int
-		Run     func(context.Context, *config.State, command) error
+		Run     Handler
 	}
 	registry map[string]cmdDef
 )
+
+func middlewareLoggedIn(handler func(ctx context.Context, s *config.State, cmd command, user database.User) error) Handler {
+	return func(ctx context.Context, s *config.State, cmd command) error {
+		user, err := s.DB.GetUserByID(ctx, s.Cfg.CurrentUserID)
+		if err != nil {
+			return fmt.Errorf("%w: Could not get current user from db: %w", ErrFatal, parseDBErr(err))
+		}
+
+		return handler(ctx, s, cmd, user)
+	}
+}
 
 func NewRegistry() registry {
 	registry := registry{
@@ -196,10 +221,11 @@ func NewRegistry() registry {
 		"reset":     {Run: handlerReset},
 		"users":     {Run: handlerUsers},
 		"agg":       {Run: handlerAgg},
-		"addfeed":   {ReqArgs: 2, Run: handlerAddFeed},
 		"feeds":     {Run: handlerFeeds},
-		"follow":    {ReqArgs: 1, Run: handlerFollow},
-		"following": {Run: handlerFollowing},
+		"addfeed":   {ReqArgs: 2, Run: middlewareLoggedIn(handlerAddFeed)},
+		"follow":    {ReqArgs: 1, Run: middlewareLoggedIn(handlerFollow)},
+		"following": {Run: middlewareLoggedIn(handlerFollowing)},
+		"unfollow":  {ReqArgs: 1, Run: middlewareLoggedIn(handlerUnfollow)},
 	}
 
 	return registry

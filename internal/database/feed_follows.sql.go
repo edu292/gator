@@ -13,28 +13,16 @@ import (
 )
 
 const createFeedFollow = `-- name: CreateFeedFollow :one
-WITH inserted_feed_follow AS (
-    INSERT INTO
-      feed_follows (
-        user_id,
-        feed_id
-      )
-    VALUES (
-        $1,
-        $2
-    )
-    RETURNING id, created_at, updated_at, user_id, feed_id
+INSERT INTO
+  feed_follows (
+    user_id,
+    feed_id
+  )
+VALUES (
+    $1,
+    $2
 )
-
-SELECT
-  inserted_feed_follow.id, inserted_feed_follow.created_at, inserted_feed_follow.updated_at, inserted_feed_follow.user_id, inserted_feed_follow.feed_id,
-  feeds.name AS feed_name
-FROM
-  inserted_feed_follow
-JOIN
-  feeds
-  ON
-    feeds.id = inserted_feed_follow.feed_id
+RETURNING id, created_at, updated_at, user_id, feed_id
 `
 
 type CreateFeedFollowParams struct {
@@ -42,25 +30,15 @@ type CreateFeedFollowParams struct {
 	FeedID int32
 }
 
-type CreateFeedFollowRow struct {
-	ID        int32
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	UserID    uuid.UUID
-	FeedID    int32
-	FeedName  string
-}
-
-func (q *Queries) CreateFeedFollow(ctx context.Context, arg CreateFeedFollowParams) (CreateFeedFollowRow, error) {
+func (q *Queries) CreateFeedFollow(ctx context.Context, arg CreateFeedFollowParams) (FeedFollow, error) {
 	row := q.db.QueryRowContext(ctx, createFeedFollow, arg.UserID, arg.FeedID)
-	var i CreateFeedFollowRow
+	var i FeedFollow
 	err := row.Scan(
 		&i.ID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.UserID,
 		&i.FeedID,
-		&i.FeedName,
 	)
 	return i, err
 }
@@ -123,4 +101,23 @@ func (q *Queries) GetFeedFollowsForUser(ctx context.Context, userID uuid.UUID) (
 		return nil, err
 	}
 	return items, nil
+}
+
+const unfollowFeed = `-- name: UnfollowFeed :exec
+DELETE FROM
+  feed_follows
+WHERE
+  feed_follows.user_id = $1
+AND
+  feed_follows.feed_id = $2
+`
+
+type UnfollowFeedParams struct {
+	UserID uuid.UUID
+	FeedID int32
+}
+
+func (q *Queries) UnfollowFeed(ctx context.Context, arg UnfollowFeedParams) error {
+	_, err := q.db.ExecContext(ctx, unfollowFeed, arg.UserID, arg.FeedID)
+	return err
 }

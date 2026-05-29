@@ -1,26 +1,14 @@
 -- name: CreateFeedFollow :one
-WITH inserted_feed_follow AS (
-    INSERT INTO
-      feed_follows (
-        user_id,
-        feed_id
-      )
-    VALUES (
-        @user_id,
-        @feed_id
-    )
-    RETURNING *
+INSERT INTO
+  feed_follows (
+    user_id,
+    feed_id
+  )
+VALUES (
+    @user_id,
+    @feed_id
 )
-
-SELECT
-  inserted_feed_follow.*,
-  feeds.name AS feed_name
-FROM
-  inserted_feed_follow
-JOIN
-  feeds
-  ON
-    feeds.id = inserted_feed_follow.feed_id;
+RETURNING *;
 
 -- name: GetFeedFollowsForUser :many
 SELECT
@@ -39,3 +27,11 @@ JOIN
     users.id = feed_follows.user_id
 WHERE
   feed_follows.user_id = @user_id;
+
+-- name: UnfollowFeed :exec
+DELETE FROM
+  feed_follows
+WHERE
+  feed_follows.user_id = @user_id
+AND
+  feed_follows.feed_id = @feed_id;
