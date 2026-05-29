@@ -7,13 +7,15 @@ import (
 	"path"
 
 	"gator/internal/database"
+
+	"github.com/google/uuid"
 )
 
 const configFileName = ".gatorconfig.json"
 
 type Config struct {
-	DBUrl           string `json:"db_url"`
-	CurrentUserName string `json:"current_user_name"`
+	DBUrl         string    `json:"db_url"`
+	CurrentUserID uuid.UUID `json:"current_user_id"`
 }
 
 type State struct {
@@ -69,8 +71,8 @@ func Read() (*Config, error) {
 	return config, nil
 }
 
-func (c *Config) SetUser(userName string) error {
-	c.CurrentUserName = userName
+func (c *Config) SetUser(userID uuid.UUID) error {
+	c.CurrentUserID = userID
 
 	configFile, err := getConfigFile(true)
 	if err != nil {

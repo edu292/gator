@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"time"
 
 	"gator/internal/config"
 	"gator/internal/database"
@@ -28,12 +27,12 @@ func handlerLogin(s *config.State, cmd command) error {
 	}
 
 	userName := cmd.args[0]
-	_, err := s.DB.GetUser(context.Background(), userName)
+	user, err := s.DB.GetUser(context.Background(), userName)
 	if err != nil {
 		log.Fatalf("User %s does not exist", userName)
 	}
 
-	s.Cfg.SetUser(userName)
+	s.Cfg.SetUser(user.ID)
 	fmt.Printf("Current user has been set to: %s\n", userName)
 	return nil
 }
@@ -44,17 +43,16 @@ func handlerRegister(s *config.State, cmd command) error {
 	}
 
 	userName := cmd.args[0]
+	userID := uuid.New()
 	_, err := s.DB.CreateUser(context.Background(), database.CreateUserParams{
-		Name:      userName,
-		ID:        uuid.New(),
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		Name: userName,
+		ID:   userID,
 	})
 	if err != nil {
 		log.Fatalf("User %s already is registered", userName)
 	}
 
-	s.Cfg.SetUser(userName)
+	s.Cfg.SetUser(userID)
 	fmt.Printf("User %s has been created\n", userName)
 	return nil
 }
@@ -77,7 +75,7 @@ func handlerUsers(s *config.State, cmd command) error {
 
 	for _, user := range users {
 		fmt.Print("* ", user.Name)
-		if user.Name == s.Cfg.CurrentUserName {
+		if user.ID == s.Cfg.CurrentUserID {
 			fmt.Print(" (current)")
 		}
 		fmt.Println()
@@ -96,8 +94,27 @@ func handlerAgg(s *config.State, cmd command) error {
 }
 
 func handlerAddFeed(s *config.State, cmd command) error {
-	user
+	userID := s.Cfg.CurrentUserID
+	if numArgs := len(cmd.args); numArgs != 2 {
+		log.Fatalf("Invalid number of args for addfeed command. Expected 2. Got %d", numArgs)
+	}
+	name := cmd.args[0]
+	url := cmd.args[1]
+
+	feed, err := s.DB.CreateFeed(context.Background(), database.CreateFeedParams{
+		Name:   name,
+		Url:    url,
+		UserID: userID,
+	})
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(feed)
+	return nil
 }
+
+func handlerFeeds
 
 type commands struct {
 	registry map[string]func(*config.State, command) error
@@ -110,6 +127,8 @@ func NewCommands() commands {
 	cmds.register("reset", handlerReset)
 	cmds.register("users", handlerUsers)
 	cmds.register("agg", handlerAgg)
+	cmds.register("addfeed", handlerAddFeed)
+	cmds.register("feeds", handlerFeeds)
 
 	return cmds
 }
