@@ -20,8 +20,12 @@ type command struct {
 	args []string
 }
 
-func NewCommand(args []string) command {
-	return command{name: args[1], args: args[2:]}
+func NewCommand(args []string) (command, error) {
+	if lenArgs := len(args); lenArgs < 2 {
+		return command{}, fmt.Errorf("%w: Too few arguments. Expected at least 2. Got: %d", ErrFatal, lenArgs)
+	}
+
+	return command{name: args[1], args: args[2:]}, nil
 }
 
 func parseDBErr(err error) error {
@@ -41,15 +45,11 @@ func parseDBErr(err error) error {
 	return err
 }
 
-func handlerLogin(s *config.State, cmd command) error {
-	if numArgs := len(cmd.args); numArgs != 1 {
-		return fmt.Errorf("%w: invalid args. expected 1, got %d", ErrFatal, numArgs)
-	}
-
+func handlerLogin(ctx context.Context, s *config.State, cmd command) error {
 	userName := cmd.args[0]
-	user, err := s.DB.GetUserByName(context.Background(), userName)
+	user, err := s.DB.GetUserByName(ctx, userName)
 	if err != nil {
-		return fmt.Errorf("%w: get user failed → %w", ErrFatal, parseDBErr(err))
+		return fmt.Errorf("%w: get user failed: %w", ErrFatal, parseDBErr(err))
 	}
 
 	s.Cfg.SetUser(user.ID)
@@ -57,19 +57,15 @@ func handlerLogin(s *config.State, cmd command) error {
 	return nil
 }
 
-func handlerRegister(s *config.State, cmd command) error {
-	if numArgs := len(cmd.args); numArgs != 1 {
-		return fmt.Errorf("%w: invalid args. expected 1, got %d", ErrFatal, numArgs)
-	}
-
+func handlerRegister(ctx context.Context, s *config.State, cmd command) error {
 	userName := cmd.args[0]
 	userID := uuid.New()
-	_, err := s.DB.CreateUser(context.Background(), database.CreateUserParams{
+	_, err := s.DB.CreateUser(ctx, database.CreateUserParams{
 		Name: userName,
 		ID:   userID,
 	})
 	if err != nil {
-		return fmt.Errorf("%w: register failed → %w", ErrFatal, parseDBErr(err))
+		return fmt.Errorf("%w: register failed: %w", ErrFatal, parseDBErr(err))
 	}
 
 	s.Cfg.SetUser(userID)
@@ -77,19 +73,19 @@ func handlerRegister(s *config.State, cmd command) error {
 	return nil
 }
 
-func handlerReset(s *config.State, cmd command) error {
-	if err := s.DB.ResetUsers(context.Background()); err != nil {
-		return fmt.Errorf("%w: reset failed → %w", ErrFatal, parseDBErr(err))
+func handlerReset(ctx context.Context, s *config.State, cmd command) error {
+	if err := s.DB.ResetUsers(ctx); err != nil {
+		return fmt.Errorf("%w: reset failed: %w", ErrFatal, parseDBErr(err))
 	}
 
 	fmt.Println("Reset successful")
 	return nil
 }
 
-func handlerUsers(s *config.State, cmd command) error {
-	users, err := s.DB.GetUsers(context.Background())
+func handlerUsers(ctx context.Context, s *config.State, cmd command) error {
+	users, err := s.DB.GetUsers(ctx)
 	if err != nil {
-		return fmt.Errorf("%w: get users failed → %w", ErrFatal, parseDBErr(err))
+		return fmt.Errorf("%w: get users failed: %w", ErrFatal, parseDBErr(err))
 	}
 
 	for _, user := range users {
@@ -102,48 +98,44 @@ func handlerUsers(s *config.State, cmd command) error {
 	return nil
 }
 
-func handlerAgg(s *config.State, cmd command) error {
-	feed, err := rss.FetchFeed(context.Background(), "https://www.wagslane.dev/index.xml")
+func handlerAgg(ctx context.Context, s *config.State, cmd command) error {
+	feed, err := rss.FetchFeed(ctx, "https://www.wagslane.dev/index.xml")
 	if err != nil {
-		return fmt.Errorf("%w: fetch feed failed → %w", ErrFatal, err)
+		return fmt.Errorf("%w: fetch feed failed: %w", ErrFatal, err)
 	}
 	fmt.Println(*feed)
 	return nil
 }
 
-func handlerAddFeed(s *config.State, cmd command) error {
+func handlerAddFeed(ctx context.Context, s *config.State, cmd command) error {
 	userID := s.Cfg.CurrentUserID
-	if numArgs := len(cmd.args); numArgs != 2 {
-		return fmt.Errorf("%w: invalid args. expected 2, got %d", ErrFatal, numArgs)
-	}
-
 	name := cmd.args[0]
 	url := cmd.args[1]
 
-	feed, err := s.DB.CreateFeed(context.Background(), database.CreateFeedParams{
+	feed, err := s.DB.CreateFeed(ctx, database.CreateFeedParams{
 		Name:   name,
 		Url:    url,
 		UserID: userID,
 	})
 	if err != nil {
-		return fmt.Errorf("%w: create feed failed → %w", ErrFatal, parseDBErr(err))
+		return fmt.Errorf("%w: create feed failed: %w", ErrFatal, parseDBErr(err))
 	}
 
-	_, err = s.DB.CreateFeedFollow(context.Background(), database.CreateFeedFollowParams{
+	_, err = s.DB.CreateFeedFollow(ctx, database.CreateFeedFollowParams{
 		FeedID: feed.ID, UserID: userID,
 	})
 	if err != nil {
-		return fmt.Errorf("%w: follow feed failed → %w", ErrFatal, parseDBErr(err))
+		return fmt.Errorf("%w: follow feed failed: %w", ErrFatal, parseDBErr(err))
 	}
 
 	fmt.Printf("Feed created: %s @ %s\n", feed.Name, feed.Url)
 	return nil
 }
 
-func handlerFeeds(s *config.State, cmd command) error {
-	feeds, err := s.DB.GetFeeds(context.Background())
+func handlerFeeds(ctx context.Context, s *config.State, cmd command) error {
+	feeds, err := s.DB.GetFeeds(ctx)
 	if err != nil {
-		return fmt.Errorf("get feeds failed → %w", parseDBErr(err))
+		return fmt.Errorf("get feeds failed: %w", parseDBErr(err))
 	}
 
 	for _, feed := range feeds {
@@ -152,72 +144,76 @@ func handlerFeeds(s *config.State, cmd command) error {
 	return nil
 }
 
-func handlerFollow(s *config.State, cmd command) error {
-	if numArgs := len(cmd.args); numArgs != 1 {
-		return fmt.Errorf("%w: invalid args. expected 1, got %d", ErrFatal, numArgs)
-	}
+func handlerFollow(ctx context.Context, s *config.State, cmd command) error {
 	url := cmd.args[0]
 
-	feed, err := s.DB.GetFeedByUrl(context.Background(), url)
+	feed, err := s.DB.GetFeedByUrl(ctx, url)
 	if err != nil {
-		return fmt.Errorf("%w: feed missing → %w", ErrFatal, parseDBErr(err))
+		return fmt.Errorf("%w: feed missing: %w", ErrFatal, parseDBErr(err))
 	}
 
-	follow, err := s.DB.CreateFeedFollow(context.Background(), database.CreateFeedFollowParams{
+	follow, err := s.DB.CreateFeedFollow(ctx, database.CreateFeedFollowParams{
 		UserID: s.Cfg.CurrentUserID,
 		FeedID: feed.ID,
 	})
 	if err != nil {
-		return fmt.Errorf("%w: create follow failed → %w", ErrFatal, parseDBErr(err))
+		return fmt.Errorf("%w: create follow failed: %w", ErrFatal, parseDBErr(err))
 	}
 
-	user, err := s.DB.GetUserByID(context.Background(), s.Cfg.CurrentUserID)
+	user, err := s.DB.GetUserByID(ctx, s.Cfg.CurrentUserID)
 	if err != nil {
-		return fmt.Errorf("%w: get user failed → %w", ErrFatal, parseDBErr(err))
+		return fmt.Errorf("%w: get user failed: %w", ErrFatal, parseDBErr(err))
 	}
 
 	fmt.Printf("%s follows %s\n", user.Name, follow.FeedName)
 	return nil
 }
 
-func handlerFollowing(s *config.State, cmd command) error {
-	follows, err := s.DB.GetFeedFollowsForUser(context.Background(), s.Cfg.CurrentUserID)
+func handlerFollowing(ctx context.Context, s *config.State, cmd command) error {
+	follows, err := s.DB.GetFeedFollowsForUser(ctx, s.Cfg.CurrentUserID)
 	if err != nil {
-		return fmt.Errorf("get follows failed → %w", parseDBErr(err))
+		return fmt.Errorf("get follows failed: %w", parseDBErr(err))
 	}
 
 	for _, follow := range follows {
-		fmt.Printf("%s @ %s\n", follow.FeedName, follow.FeedUrl)
+		fmt.Printf("- %s @ %s\n", follow.FeedName, follow.FeedUrl)
 	}
 	return nil
 }
 
-type commands struct {
-	registry map[string]func(*config.State, command) error
+type (
+	cmdDef struct {
+		ReqArgs int
+		Run     func(context.Context, *config.State, command) error
+	}
+	registry map[string]cmdDef
+)
+
+func NewRegistry() registry {
+	registry := registry{
+		"register":  {ReqArgs: 1, Run: handlerRegister},
+		"login":     {ReqArgs: 1, Run: handlerLogin},
+		"reset":     {Run: handlerReset},
+		"users":     {Run: handlerUsers},
+		"agg":       {Run: handlerAgg},
+		"addfeed":   {ReqArgs: 2, Run: handlerAddFeed},
+		"feeds":     {Run: handlerFeeds},
+		"follow":    {ReqArgs: 1, Run: handlerFollow},
+		"following": {Run: handlerFollowing},
+	}
+
+	return registry
 }
 
-func NewCommands() commands {
-	cmds := commands{make(map[string]func(*config.State, command) error)}
-	cmds.register("login", handlerLogin)
-	cmds.register("register", handlerRegister)
-	cmds.register("reset", handlerReset)
-	cmds.register("users", handlerUsers)
-	cmds.register("agg", handlerAgg)
-	cmds.register("addfeed", handlerAddFeed)
-	cmds.register("feeds", handlerFeeds)
-	cmds.register("follow", handlerFollow)
-	cmds.register("following", handlerFollowing)
-	return cmds
-}
-
-func (c *commands) Run(s *config.State, cmd command) error {
-	handler, exist := c.registry[cmd.name]
+func (c registry) Run(ctx context.Context, s *config.State, cmd command) error {
+	def, exist := c[cmd.name]
 	if !exist {
 		return fmt.Errorf("%w: unknown command %s", ErrFatal, cmd.name)
 	}
-	return handler(s, cmd)
-}
 
-func (c *commands) register(name string, f func(*config.State, command) error) {
-	c.registry[name] = f
+	argLen := len(cmd.args)
+	if def.ReqArgs != -1 && argLen != def.ReqArgs {
+		return fmt.Errorf("%w: %s requires %d args, got %d", ErrFatal, cmd.name, def.ReqArgs, argLen)
+	}
+	return def.Run(ctx, s, cmd)
 }
