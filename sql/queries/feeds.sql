@@ -1,5 +1,10 @@
 -- name: CreateFeed :one
-INSERT INTO feeds (name, url, user_id)
+INSERT INTO
+feeds (
+    name,
+    url,
+    user_id
+)
 VALUES (
     @name,
     @url,
@@ -9,40 +14,40 @@ RETURNING *;
 
 -- name: GetFeeds :many
 SELECT
-  feeds.name AS feed_name,
-  feeds.url,
-  users.name AS user_name
+    feeds.name AS feed_name,
+    feeds.url,
+    users.name AS user_name
 FROM
-  feeds
-JOIN
-  users ON users.id = feeds.user_id;
+    feeds
+INNER JOIN
+    users
+    ON
+    feeds.user_id = users.id;
 
 -- name: GetFeedByUrl :one
-SELECT
-  *
+SELECT *
 FROM
-  feeds
+    feeds
 WHERE
-  url = @url;
+    url = @url;
 
 -- name: MarkFeedFetched :exec
 UPDATE
-  feeds
+    feeds
 SET
-  updated_at=NOW(),
-  last_fetched_at=NOW()
+    updated_at = NOW(),
+    last_fetched_at = NOW()
 WHERE
-  id = @id;
+    id = @id;
 
 -- name: GetNextFeedToFetch :one
-SELECT
-  *
+SELECT *
 FROM
-  feeds
+    feeds
 ORDER BY
-  last_fetched_at NULLS FIRST
+    last_fetched_at NULLS FIRST
 LIMIT
-  1;
+    1;
 
 -- name: ResetFeeds :exec
 DELETE FROM feeds;

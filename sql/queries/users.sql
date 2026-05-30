@@ -1,5 +1,9 @@
 -- name: CreateUser :one
-INSERT INTO users (id, name)
+INSERT INTO
+users (
+    id,
+    name
+)
 VALUES (
     @id,
     @name
@@ -7,27 +11,24 @@ VALUES (
 RETURNING *;
 
 -- name: GetUserByID :one
-SELECT
-  *
+SELECT *
 FROM
-  users
+    users
 WHERE
-  id = @id;
+    id = @id;
 
 -- name: GetUserByName :one
-SELECT
-  *
+SELECT *
 FROM
-  users
+    users
 WHERE
-  name = @name;
+    name = @name;
 
 
 -- name: ResetUsers :exec
 DELETE FROM users;
 
 -- name: GetUsers :many
-SELECT
-  *
+SELECT *
 FROM
-  users;
+    users;

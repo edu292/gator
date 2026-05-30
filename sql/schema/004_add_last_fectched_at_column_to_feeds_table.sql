@@ -1,11 +1,11 @@
 -- +goose up
 ALTER TABLE
-  feeds
+feeds
 ADD
-  last_fetched_at TIMESTAMPTZ;
+last_fetched_at TIMESTAMPTZ;
 
 -- +goose down
 ALTER TABLE
-  feeds
+feeds
 DROP COLUMN
-  last_fetched_at;
+last_fetched_at;
